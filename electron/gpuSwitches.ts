@@ -16,10 +16,7 @@ function normalizeLinuxWindowSystem(value: string | undefined): LinuxOzonePlatfo
 }
 
 function getForcedLinuxWindowSystem(env: NodeJS.ProcessEnv): LinuxOzonePlatform | null {
-	return (
-		normalizeLinuxWindowSystem(env.OZONE_PLATFORM) ??
-		normalizeLinuxWindowSystem(env.ELECTRON_OZONE_PLATFORM_HINT)
-	);
+	return normalizeLinuxWindowSystem(env.OZONE_PLATFORM);
 }
 
 export function isHyprlandSession(env: NodeJS.ProcessEnv): boolean {

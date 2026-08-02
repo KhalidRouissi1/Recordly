@@ -89,7 +89,6 @@ function configureGpuAccelerationSwitches() {
 	if (process.platform === "linux" && !app.commandLine.hasSwitch("ozone-platform")) {
 		const ozonePlatform = getLinuxOzonePlatformOverride(process.env);
 		if (ozonePlatform) {
-			process.env.ELECTRON_OZONE_PLATFORM_HINT = ozonePlatform;
 			app.commandLine.appendSwitch("ozone-platform", ozonePlatform);
 		}
 	}

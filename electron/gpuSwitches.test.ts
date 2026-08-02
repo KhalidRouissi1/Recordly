@@ -26,24 +26,23 @@ describe("shouldForceLinuxEgl", () => {
 		).toBe(false);
 	});
 
-	it("falls back to Electron's ozone hint when OZONE_PLATFORM is invalid", () => {
+	it("ignores invalid OZONE_PLATFORM values", () => {
 		expect(
 			shouldForceLinuxEgl({
 				OZONE_PLATFORM: "auto",
-				ELECTRON_OZONE_PLATFORM_HINT: "wayland",
 				XDG_SESSION_TYPE: "x11",
 			}),
-		).toBe(false);
+		).toBe(true);
 	});
 
 	it("forces EGL in an X11 session", () => {
 		expect(shouldForceLinuxEgl({ XDG_SESSION_TYPE: "x11" })).toBe(true);
 	});
 
-	it("forces EGL when x11 is explicitly requested via Electron's ozone hint", () => {
+	it("forces EGL when X11 is explicitly requested via OZONE_PLATFORM", () => {
 		expect(
 			shouldForceLinuxEgl({
-				ELECTRON_OZONE_PLATFORM_HINT: "x11",
+				OZONE_PLATFORM: "x11",
 				WAYLAND_DISPLAY: "wayland-0",
 			}),
 		).toBe(true);
@@ -96,11 +95,11 @@ describe("getLinuxOzonePlatformOverride", () => {
 		).toBe("x11");
 	});
 
-	it("does not override an explicit Wayland request", () => {
+	it("does not override an explicit Wayland request via OZONE_PLATFORM", () => {
 		expect(
 			getLinuxOzonePlatformOverride({
 				XDG_CURRENT_DESKTOP: "Hyprland",
-				ELECTRON_OZONE_PLATFORM_HINT: "wayland",
+				OZONE_PLATFORM: "wayland",
 			}),
 		).toBeNull();
 	});
