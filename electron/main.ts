@@ -19,7 +19,7 @@ import {
 import { RECORDINGS_DIR } from "./appPaths";
 import { showCursor } from "./cursorHider";
 import { registerExtensionIpcHandlers } from "./extensions/extensionIpc";
-import { getGpuSwitches } from "./gpuSwitches";
+import { getGpuSwitches, getLinuxOzonePlatformOverride } from "./gpuSwitches";
 import {
 	cleanupAllExportStreams,
 	cleanupNativeVideoExportSessions,
@@ -30,10 +30,7 @@ import {
 import { ensureMediaServer } from "./mediaServer";
 import { shouldGrantDisplayCapture, shouldGrantMediaPermission } from "./permissionPolicy";
 import { ensurePackagedRendererServer, getPackagedRendererBaseUrl } from "./rendererServer";
-import {
-	hardenWebContentsNavigation,
-	shouldHardenWebContentsType,
-} from "./navigationPolicy";
+import { hardenWebContentsNavigation, shouldHardenWebContentsType } from "./navigationPolicy";
 import type { UpdateToastPayload } from "./updater";
 import {
 	checkForAppUpdates,
@@ -89,6 +86,14 @@ app.on("web-contents-created", (_event, contents) => {
 });
 
 function configureGpuAccelerationSwitches() {
+	if (process.platform === "linux" && !app.commandLine.hasSwitch("ozone-platform")) {
+		const ozonePlatform = getLinuxOzonePlatformOverride(process.env);
+		if (ozonePlatform) {
+			process.env.ELECTRON_OZONE_PLATFORM_HINT = ozonePlatform;
+			app.commandLine.appendSwitch("ozone-platform", ozonePlatform);
+		}
+	}
+
 	const { useAngle, useGl, disableFeatures } = getGpuSwitches(process.platform, process.env);
 	if (useAngle) {
 		app.commandLine.appendSwitch("use-angle", useAngle);

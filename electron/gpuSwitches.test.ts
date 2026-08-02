@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { getGpuSwitches, shouldForceLinuxEgl } from "./gpuSwitches";
+import {
+	getGpuSwitches,
+	getLinuxOzonePlatformOverride,
+	isHyprlandSession,
+	shouldForceLinuxEgl,
+} from "./gpuSwitches";
 
 describe("shouldForceLinuxEgl", () => {
 	it("does not force EGL in a Wayland session", () => {
@@ -63,5 +68,58 @@ describe("getGpuSwitches", () => {
 			useGl: "egl",
 			disableFeatures: ["VaapiVideoDecoder", "VaapiVideoEncoder"],
 		});
+	});
+});
+
+describe("isHyprlandSession", () => {
+	it("detects Hyprland from the compositor instance signature", () => {
+		expect(isHyprlandSession({ HYPRLAND_INSTANCE_SIGNATURE: "abc" })).toBe(true);
+	});
+
+	it("detects Hyprland from XDG_CURRENT_DESKTOP", () => {
+		expect(isHyprlandSession({ XDG_CURRENT_DESKTOP: "Hyprland" })).toBe(true);
+		expect(isHyprlandSession({ XDG_CURRENT_DESKTOP: "sway:Hyprland" })).toBe(true);
+	});
+
+	it("ignores non-Hyprland sessions", () => {
+		expect(isHyprlandSession({ XDG_CURRENT_DESKTOP: "GNOME" })).toBe(false);
+	});
+});
+
+describe("getLinuxOzonePlatformOverride", () => {
+	it("defaults Hyprland to X11/Ozone", () => {
+		expect(
+			getLinuxOzonePlatformOverride({
+				XDG_SESSION_TYPE: "wayland",
+				XDG_CURRENT_DESKTOP: "Hyprland",
+			}),
+		).toBe("x11");
+	});
+
+	it("does not override an explicit Wayland request", () => {
+		expect(
+			getLinuxOzonePlatformOverride({
+				XDG_CURRENT_DESKTOP: "Hyprland",
+				ELECTRON_OZONE_PLATFORM_HINT: "wayland",
+			}),
+		).toBeNull();
+	});
+
+	it("does not override an explicit X11 request", () => {
+		expect(
+			getLinuxOzonePlatformOverride({
+				XDG_CURRENT_DESKTOP: "Hyprland",
+				OZONE_PLATFORM: "x11",
+			}),
+		).toBeNull();
+	});
+
+	it("does not affect other Linux desktops", () => {
+		expect(
+			getLinuxOzonePlatformOverride({
+				XDG_SESSION_TYPE: "wayland",
+				XDG_CURRENT_DESKTOP: "GNOME",
+			}),
+		).toBeNull();
 	});
 });
