@@ -31,6 +31,7 @@ import type { Span } from "dnd-timeline";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { EditorAnnouncementBanner } from "@/components/announcements/EditorAnnouncementBanner";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -51,6 +52,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Toaster } from "@/components/ui/sonner";
 import { useI18n } from "@/contexts/I18nContext";
 import { useShortcuts } from "@/contexts/ShortcutsContext";
+import { OPEN_EDITOR_SECTION_EVENT } from "@/lib/announcementActions";
+import { type AnnouncementEditorSection, isAnnouncementEditorSection } from "@/lib/announcements";
 import {
 	calculateOutputDimensions,
 	DEFAULT_MP4_CODEC,
@@ -86,7 +89,6 @@ import {
 	getAspectRatioValue,
 } from "@/utils/aspectRatioUtils";
 import { planClipSpeedChange } from "./clipSpeedChange";
-import { ExtensionIcon } from "./ExtensionIcon";
 import {
 	calculateMp4ExportDimensions,
 	calculateMp4SourceDimensions,
@@ -120,7 +122,6 @@ const PhSettings = (props: { className?: string; weight?: "fill" | "regular" }) 
 );
 
 import type { SourceAudioTrackSettings } from "@/components/video-editor/audio/audioTypes";
-import { extensionHost } from "@/lib/extensions";
 import { useVideoEditorAudio } from "./audio/useVideoEditorAudio";
 import { resolveAutoCaptionSourcePath } from "./autoCaptionSource";
 import { CropControl } from "./CropControl";
@@ -534,7 +535,6 @@ export default function VideoEditor() {
 	const [cursorSway, setCursorSway] = useState(initialEditorPreferences.cursorSway);
 	const [borderRadius, setBorderRadius] = useState(initialEditorPreferences.borderRadius);
 	const [padding, setPadding] = useState(initialEditorPreferences.padding);
-	const [frame, setFrame] = useState<string | null>(initialEditorPreferences.frame);
 	const [cropRegion, setCropRegion] = useState<CropRegion>(DEFAULT_CROP_REGION);
 	const [webcam, setWebcam] = useState<WebcamOverlaySettings>(
 		initialEditorPreferences.webcam ?? DEFAULT_WEBCAM_OVERLAY,
@@ -610,6 +610,17 @@ export default function VideoEditor() {
 		initialEditorPreferences.aspectRatio,
 	);
 	const [activeEffectSection, setActiveEffectSection] = useState<EditorEffectSection>("scene");
+	useEffect(() => {
+		const handleOpenEditorSection = (event: Event) => {
+			const section = (event as CustomEvent<AnnouncementEditorSection>).detail;
+			if (isAnnouncementEditorSection(section)) {
+				setActiveEffectSection(section);
+			}
+		};
+
+		window.addEventListener(OPEN_EDITOR_SECTION_EVENT, handleOpenEditorSection);
+		return () => window.removeEventListener(OPEN_EDITOR_SECTION_EVENT, handleOpenEditorSection);
+	}, []);
 	const [exportQuality, setExportQuality] = useState<ExportQuality>(
 		initialEditorPreferences.exportQuality,
 	);
@@ -739,11 +750,6 @@ export default function VideoEditor() {
 		}
 	}, []);
 
-	// Auto-activate builtin extensions at editor startup (idempotent)
-	useEffect(() => {
-		extensionHost.autoActivateBuiltins();
-	}, []);
-
 	const [supportedMp4SourceDimensions, setSupportedMp4SourceDimensions] =
 		useState<SupportedMp4Dimensions>({
 			width: 1920,
@@ -797,7 +803,6 @@ export default function VideoEditor() {
 			cursorSway,
 			borderRadius,
 			padding: { ...padding },
-			frame,
 			cropRegion: { ...cropRegion },
 			webcam: { ...webcam },
 			aspectRatio,
@@ -854,7 +859,6 @@ export default function VideoEditor() {
 			cursorSway,
 			borderRadius,
 			padding,
-			frame,
 			cropRegion,
 			webcam,
 			aspectRatio,
@@ -952,7 +956,6 @@ export default function VideoEditor() {
 		setCursorSway(snapshot.cursorSway);
 		setBorderRadius(snapshot.borderRadius);
 		setPadding({ ...snapshot.padding });
-		setFrame(snapshot.frame);
 		setCropRegion({ ...snapshot.cropRegion });
 		setWebcam({ ...snapshot.webcam });
 		setAspectRatio(snapshot.aspectRatio);
@@ -1620,37 +1623,6 @@ export default function VideoEditor() {
 		mp4SourceDimensions.width,
 	]);
 
-	// Extension-contributed standalone section pages (no parentSection)
-	const [extensionSectionButtons, setExtensionSectionButtons] = useState<
-		{
-			id: EditorEffectSection;
-			label: string;
-			icon: typeof PhPuzzle | string;
-			extensionPath?: string | null;
-		}[]
-	>([]);
-	useEffect(() => {
-		const update = () => {
-			const panels = extensionHost.getSettingsPanels();
-			const extensionPathById = new Map(
-				extensionHost
-					.getActiveExtensions()
-					.map((extension) => [extension.manifest.id, extension.path]),
-			);
-			const standalone = panels
-				.filter((p) => !p.panel.parentSection)
-				.map((p) => ({
-					id: `ext:${p.extensionId}/${p.panel.id}` as EditorEffectSection,
-					label: p.panel.label,
-					icon: p.panel.icon || (PhPuzzle as typeof PhPuzzle | string),
-					extensionPath: extensionPathById.get(p.extensionId),
-				}));
-			setExtensionSectionButtons(standalone);
-		};
-		update();
-		return extensionHost.onChange(update);
-	}, []);
-
 	const editorSectionButtons = useMemo(
 		() => [
 			{ id: "scene" as const, label: t("settings.sections.scene", "Scene"), icon: PhSparkle },
@@ -1674,14 +1646,13 @@ export default function VideoEditor() {
 				label: t("settings.sections.settings", "Settings"),
 				icon: PhSettings,
 			},
-			...extensionSectionButtons,
 			{
 				id: "extensions" as const,
 				label: t("settings.sections.extensions", "Extensions"),
 				icon: PhPuzzle,
 			},
 		],
-		[t, extensionSectionButtons],
+		[t],
 	);
 
 	useEffect(() => {
@@ -1734,7 +1705,6 @@ export default function VideoEditor() {
 				cursorSway: number;
 				borderRadius: number;
 				padding: Padding;
-				frame: string | null;
 				cropRegion: CropRegion;
 				webcam: WebcamOverlaySettings;
 				zoomRegions: ZoomRegion[];
@@ -1857,7 +1827,6 @@ export default function VideoEditor() {
 				cursorSway,
 				borderRadius,
 				padding,
-				frame,
 				cropRegion,
 				webcam,
 				zoomRegions,
@@ -1944,7 +1913,6 @@ export default function VideoEditor() {
 			gifFrameRate,
 			gifLoop,
 			gifSizePreset,
-			frame,
 			sourceAudioTrackSettingsByClip,
 			defaultSourceAudioTrackSettings,
 		],
@@ -2113,7 +2081,6 @@ export default function VideoEditor() {
 			setCursorSway(normalizedEditor.cursorSway);
 			setBorderRadius(normalizedEditor.borderRadius);
 			setPadding(normalizedEditor.padding);
-			setFrame(normalizedEditor.frame);
 			setCropRegion(normalizedEditor.cropRegion);
 			setWebcam(normalizedEditor.webcam);
 			setZoomRegions(normalizedEditor.zoomRegions);
@@ -2662,7 +2629,6 @@ export default function VideoEditor() {
 			cursorSway,
 			borderRadius,
 			padding,
-			frame,
 			webcam,
 			aspectRatio,
 			exportEncodingMode,
@@ -2718,7 +2684,6 @@ export default function VideoEditor() {
 		cursorSway,
 		borderRadius,
 		padding,
-		frame,
 		webcam,
 		aspectRatio,
 		exportEncodingMode,
@@ -3840,10 +3805,6 @@ export default function VideoEditor() {
 			setSelectedZoomId(id);
 			setSelectedAnnotationId(null);
 			setSelectedCaptionId(null);
-			extensionHost.emitEvent({
-				type: "timeline:region-added",
-				data: { id, startMs: newRegion.startMs, endMs: newRegion.endMs },
-			});
 		},
 		[videoPath],
 	);
@@ -3865,10 +3826,6 @@ export default function VideoEditor() {
 			}
 			setZoomRegions((prev) => [...prev, newRegion]);
 			// Don't auto-select suggested zooms — they follow cursor and don't need user interaction
-			extensionHost.emitEvent({
-				type: "timeline:region-added",
-				data: { id, startMs: newRegion.startMs, endMs: newRegion.endMs },
-			});
 		},
 		[videoPath],
 	);
@@ -4031,7 +3988,6 @@ export default function VideoEditor() {
 			if (selectedZoomId === id) {
 				setSelectedZoomId(null);
 			}
-			extensionHost.emitEvent({ type: "timeline:region-removed", data: { id } });
 		},
 		[selectedZoomId],
 	);
@@ -4602,7 +4558,6 @@ export default function VideoEditor() {
 			setExportProgress(null);
 			setExportError(null);
 			clearPendingExportSave();
-			extensionHost.emitEvent({ type: "export:start" });
 			const smokeExportStartedAt = smokeExportConfig.enabled ? performance.now() : null;
 
 			let keepExportDialogOpen = false;
@@ -4693,7 +4648,6 @@ export default function VideoEditor() {
 						cursorClickBounce,
 						cursorClickBounceDuration,
 						cursorSway,
-						frame,
 						previewWidth,
 						previewHeight,
 						maxDecodeQueue: smokeExportConfig.maxDecodeQueue,
@@ -4876,7 +4830,6 @@ export default function VideoEditor() {
 						cursorClickBounce,
 						cursorClickBounceDuration,
 						cursorSway,
-						frame,
 						audioRegions,
 						clipRegions,
 						sourceAudioFallbackPaths: audio.sourceAudioFallbackPaths,
@@ -5093,7 +5046,6 @@ export default function VideoEditor() {
 					window.close();
 				}
 			} finally {
-				extensionHost.emitEvent({ type: "export:complete" });
 				setIsExporting(false);
 				exporterRef.current = null;
 				setShowExportDropdown(keepExportDialogOpen);
@@ -5182,7 +5134,6 @@ export default function VideoEditor() {
 			smokeExportConfig.pipelineModel,
 			smokeExportConfig.shadowIntensity,
 			effectiveSpeedRegions,
-			frame,
 			selectedClipId,
 			smokeExportConfig.encodingMode,
 			smokeExportConfig.fps,
@@ -5573,9 +5524,8 @@ export default function VideoEditor() {
 			zoomInEasing={zoomInEasing}
 			zoomOutEasing={zoomOutEasing}
 			connectedZoomEasing={connectedZoomEasing}
-			borderRadius={borderRadius}
+			borderRadius={0}
 			padding={padding}
-			frame={frame}
 			cropRegion={cropRegion}
 			webcam={webcam}
 			webcamVideoPath={webcam.sourcePath ? resolvedWebcamVideoUrl : null}
@@ -5911,7 +5861,7 @@ export default function VideoEditor() {
 					)}
 				</div>
 				<div
-					className="flex items-center justify-self-end pr-3"
+					className="flex items-center justify-self-end"
 					style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
 				>
 					<Popover open={presetPopoverOpen} onOpenChange={setPresetPopoverOpen}>
@@ -6261,6 +6211,7 @@ export default function VideoEditor() {
 					</DropdownMenu>
 				</div>
 			</div>
+			<EditorAnnouncementBanner />
 
 			<div className="relative flex min-h-0 flex-1 flex-col gap-3 p-4">
 				<div className="flex min-h-0 flex-1 gap-3 relative z-10">
@@ -6300,18 +6251,10 @@ export default function VideoEditor() {
 												}}
 												transition={{ duration: 0.14 }}
 											>
-												{typeof section.icon === "string" ? (
-													<ExtensionIcon
-														icon={section.icon}
-														extensionPath={section.extensionPath}
-														className="h-[27px] w-[27px]"
-													/>
-												) : (
-													<section.icon
-														className="h-[27px] w-[27px]"
-														weight={isActive ? "fill" : "regular"}
-													/>
-												)}
+												<section.icon
+													className="h-[27px] w-[27px]"
+													weight={isActive ? "fill" : "regular"}
+												/>
 											</motion.span>
 										</motion.button>
 										<div className="ml-1.5 h-1.5 w-1.5 flex-shrink-0">
@@ -6429,16 +6372,6 @@ export default function VideoEditor() {
 								onShadowChange={setShadowIntensity}
 								backgroundBlur={backgroundBlur}
 								onBackgroundBlurChange={setBackgroundBlur}
-								zoomMotionBlurTuning={zoomMotionBlurTuning}
-								onZoomMotionBlurTuningChange={setZoomMotionBlurTuning}
-								zoomTemporalMotionBlur={zoomTemporalMotionBlur}
-								onZoomTemporalMotionBlurChange={setZoomTemporalMotionBlur}
-								zoomMotionBlurSampleCount={zoomMotionBlurSampleCount}
-								onZoomMotionBlurSampleCountChange={setZoomMotionBlurSampleCount}
-								zoomMotionBlurShutterFraction={zoomMotionBlurShutterFraction}
-								onZoomMotionBlurShutterFractionChange={
-									setZoomMotionBlurShutterFraction
-								}
 								autoApplyFreshRecordingAutoZooms={autoApplyFreshRecordingAutoZooms}
 								onAutoApplyFreshRecordingAutoZoomsChange={
 									setAutoApplyFreshRecordingAutoZooms
@@ -6493,8 +6426,6 @@ export default function VideoEditor() {
 								onCameraSpringMassMultiplierChange={setCameraSpringMassMultiplier}
 								zoomClassicMode={zoomClassicMode}
 								onZoomClassicModeChange={setZoomClassicMode}
-								cursorMotionBlur={cursorMotionBlur}
-								onCursorMotionBlurChange={setCursorMotionBlur}
 								cursorClickEffect={cursorClickEffect}
 								cursorClickEffectColor={cursorClickEffectColor}
 								onCursorClickEffectChange={setCursorClickEffect}
@@ -6522,8 +6453,6 @@ export default function VideoEditor() {
 								onClearWebcam={handleClearWebcam}
 								padding={padding}
 								onPaddingChange={setPadding}
-								frame={frame}
-								onFrameChange={setFrame}
 								cropRegion={cropRegion}
 								onCropChange={setCropRegion}
 								aspectRatio={aspectRatio}

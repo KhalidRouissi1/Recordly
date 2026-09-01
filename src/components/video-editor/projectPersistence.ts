@@ -46,18 +46,19 @@ import {
 	DEFAULT_CURSOR_CLICK_EFFECT_DURATION_MS,
 	DEFAULT_CURSOR_CLICK_EFFECT_OPACITY,
 	DEFAULT_CURSOR_CLICK_EFFECT_SCALE,
+	DEFAULT_CURSOR_MOTION_BLUR,
 	DEFAULT_CURSOR_STYLE,
 	DEFAULT_CURSOR_SWAY,
 	DEFAULT_FIGURE_DATA,
 	DEFAULT_PADDING,
 	DEFAULT_PLAYBACK_SPEED,
-	DEFAULT_WEBCAM_CORNER_RADIUS,
 	DEFAULT_WEBCAM_MARGIN,
 	DEFAULT_WEBCAM_OVERLAY,
 	DEFAULT_WEBCAM_POSITION_PRESET,
 	DEFAULT_WEBCAM_POSITION_X,
 	DEFAULT_WEBCAM_POSITION_Y,
 	DEFAULT_WEBCAM_REACT_TO_ZOOM,
+	DEFAULT_WEBCAM_ROUNDNESS,
 	DEFAULT_WEBCAM_SHADOW,
 	DEFAULT_WEBCAM_SIZE,
 	DEFAULT_WEBCAM_TIME_OFFSET_MS,
@@ -79,7 +80,7 @@ import {
 	type ZoomRegion,
 	type ZoomTransitionEasing,
 } from "./types";
-import { normalizeWebcamCropRegion } from "./webcamOverlay";
+import { convertLegacyWebcamRadiusToRoundness, normalizeWebcamCropRegion } from "./webcamOverlay";
 
 export const PROJECT_VERSION = 1;
 
@@ -127,8 +128,6 @@ export interface ProjectEditorState {
 	cursorSway: number;
 	borderRadius: number;
 	padding: Padding;
-	/** Selected frame ID (e.g. "recordly.frames/browser-dark"), or null for none */
-	frame: string | null;
 	cropRegion: CropRegion;
 	zoomRegions: ZoomRegion[];
 	trimRegions: TrimRegion[];
@@ -853,9 +852,6 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 		cursorSpringMassMultiplier: isFiniteNumber(editor.cursorSpringMassMultiplier)
 			? clamp(editor.cursorSpringMassMultiplier, 0.25, 3)
 			: DEFAULT_MOTION_PRESET.cursorSpringMassMultiplier,
-		cursorMotionBlur: isFiniteNumber((editor as Partial<ProjectEditorState>).cursorMotionBlur)
-			? clamp((editor as Partial<ProjectEditorState>).cursorMotionBlur as number, 0, 2)
-			: DEFAULT_MOTION_PRESET.cursorMotionBlur,
 		cursorClickBounce: isFiniteNumber((editor as Partial<ProjectEditorState>).cursorClickBounce)
 			? clamp((editor as Partial<ProjectEditorState>).cursorClickBounce as number, 0, 5)
 			: DEFAULT_MOTION_PRESET.cursorClickBounce,
@@ -944,7 +940,7 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 		zoomSmoothness: DEFAULT_ZOOM_SMOOTHNESS,
 		zoomClassicMode:
 			typeof editor.zoomClassicMode === "boolean" ? editor.zoomClassicMode : false,
-		cursorMotionBlur: normalizedMotionPreset.cursorMotionBlur,
+		cursorMotionBlur: DEFAULT_CURSOR_MOTION_BLUR,
 		cursorClickBounce: normalizedMotionPreset.cursorClickBounce,
 		cursorClickBounceDuration: normalizedMotionPreset.cursorClickBounceDuration,
 		cursorSway: isFiniteNumber((editor as Partial<ProjectEditorState>).cursorSway)
@@ -978,7 +974,6 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 			}
 			return { ...DEFAULT_PADDING };
 		})(),
-		frame: typeof editor.frame === "string" ? editor.frame : null,
 		cropRegion: {
 			x: cropX,
 			y: cropY,
@@ -1052,9 +1047,23 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 					: legacyZoomScaleEffect != null
 						? legacyZoomScaleEffect > 0
 						: DEFAULT_WEBCAM_REACT_TO_ZOOM,
-			cornerRadius: isFiniteNumber(webcam.cornerRadius)
-				? clamp(webcam.cornerRadius, 0, 160)
-				: DEFAULT_WEBCAM_CORNER_RADIUS,
+			roundness: isFiniteNumber(webcam.roundness)
+				? clamp(webcam.roundness, 0, 100)
+				: isFiniteNumber(webcam.cornerRadius)
+					? convertLegacyWebcamRadiusToRoundness(
+							webcam.cornerRadius,
+							isFiniteNumber(webcam.width)
+								? webcam.width
+								: isFiniteNumber(webcam.size)
+									? webcam.size
+									: DEFAULT_WEBCAM_SIZE,
+							isFiniteNumber(webcam.height)
+								? webcam.height
+								: isFiniteNumber(webcam.size)
+									? webcam.size
+									: DEFAULT_WEBCAM_SIZE,
+						)
+					: DEFAULT_WEBCAM_ROUNDNESS,
 			shadow: isFiniteNumber(webcam.shadow)
 				? clamp(webcam.shadow, 0, 1)
 				: DEFAULT_WEBCAM_SHADOW,

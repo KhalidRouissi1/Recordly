@@ -438,6 +438,7 @@ function LaunchWindowContent() {
 	const hudMode = finalizing ? "finalizing" : recording ? "recording" : "idle";
 	const useNativeHudBarDrag =
 		platform === "linux" || hudOverlayMousePassthroughSupported === false;
+	const shouldAnimateHudLayout = !recording && !showRecordingWebcamPreview && !isHudDragging;
 
 	return (
 		<HudInteractionContext.Provider
@@ -451,11 +452,7 @@ function LaunchWindowContent() {
 					ref={hudContentRef}
 					className="flex items-center overflow-visible flex-col-reverse pointer-events-none"
 				>
-					<div
-						className="flex flex-col items-center pointer-events-auto p-2"
-						onMouseEnter={handleHudMouseEnter}
-						onMouseLeave={handleHudMouseLeave}
-					>
+					<div className="flex flex-col items-center pointer-events-none p-2">
 						<div
 							ref={hudBarTransformRef}
 							style={{
@@ -464,9 +461,11 @@ function LaunchWindowContent() {
 						>
 							<motion.div
 								ref={hudBarRef}
-								layout={!showRecordingWebcamPreview && !isHudDragging}
+								layout={shouldAnimateHudLayout}
 								transition={hudStateTransition}
-								className={`${styles.bar} launch-theme mb-2`}
+								className={`${styles.bar} launch-theme mb-2 pointer-events-auto`}
+								onMouseEnter={handleHudMouseEnter}
+								onMouseLeave={handleHudMouseLeave}
 							>
 								<div
 									// Linux compositors and non-passthrough Windows fallback windows
@@ -487,7 +486,7 @@ function LaunchWindowContent() {
 									<AnimatePresence initial={false} mode="wait">
 										<motion.div
 											key={hudMode}
-											layout={!showRecordingWebcamPreview && !isHudDragging}
+											layout={shouldAnimateHudLayout}
 											className={styles.barState}
 											initial={{
 												opacity: 0,

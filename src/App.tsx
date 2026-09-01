@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { AnnouncementDialog } from "./components/announcements/AnnouncementDialog";
+import { LiveAnnouncementNotifications } from "./components/announcements/LiveAnnouncementNotifications";
 import { CountdownOverlay } from "./components/countdown/CountdownOverlay";
 import { LaunchWindow } from "./components/launch/LaunchWindow";
 import { SourceSelector } from "./components/launch/SourceSelector";
@@ -13,7 +15,6 @@ import { loadAllCustomFonts } from "./lib/customFonts";
 export default function App() {
 	const [windowType, setWindowType] = useState("");
 	const { t } = useI18n();
-	const isMacOS = /mac/i.test(navigator.platform);
 	const appIconSrc = "/app-icons/recordly-128.png";
 
 	useEffect(() => {
@@ -26,7 +27,7 @@ export default function App() {
 			type === "hud-overlay" ||
 			type === "source-selector" ||
 			type === "countdown" ||
-			(type === "update-toast" && isMacOS)
+			type === "update-toast"
 		) {
 			document.body.style.background = "transparent";
 			document.documentElement.style.background = "transparent";
@@ -72,10 +73,14 @@ export default function App() {
 			return <UpdateToastWindow />;
 		case "editor":
 			return (
-				<ShortcutsProvider>
-					<VideoEditor />
-					<ShortcutsConfigDialog />
-				</ShortcutsProvider>
+				<>
+					<ShortcutsProvider>
+						<VideoEditor />
+						<ShortcutsConfigDialog />
+					</ShortcutsProvider>
+					<AnnouncementDialog audience="editor" />
+					<LiveAnnouncementNotifications audience="editor" />
+				</>
 			);
 		default:
 			return (
